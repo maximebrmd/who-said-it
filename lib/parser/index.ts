@@ -28,9 +28,14 @@ const MESSAGE_RE = /^([^:]{1,50}):\s?([\s\S]*)$/;
 const INVISIBLE_RE =
   /[​‎‏‪-‮⁦-⁩﻿]/g;
 
-// Media placeholders that make up an entire message body.
-const MEDIA_RE =
-  /^<?\s*(image|video|audio|sticker|GIF|document|Contact card|Media)( card)?\s+omitted\s*>?$/i;
+// Attached-media markers, anywhere in a message (a caption may sit next to one,
+// e.g. "Is this anyone's? image omitted"). We strip the marker, then keep the
+// caption only if substantial guessable text remains.
+const MEDIA_MARKER_SRC =
+  "<\\s*Media\\s+omitted\\s*>|\\b(?:image|photo|video|audio|sticker|gif|document|contact card|media)\\s+omitted\\b";
+const MEDIA_DETECT_RE = new RegExp(MEDIA_MARKER_SRC, "i");
+const MEDIA_STRIP_RE = new RegExp(MEDIA_MARKER_SRC, "gi");
+const MEDIA_CAPTION_MIN_LETTERS = 8;
 
 // Trailing inline marker WhatsApp adds to edited messages.
 const EDITED_MARKER_RE = /<this message was edited>\s*$/i;
@@ -40,9 +45,28 @@ const EDITED_MARKER_RE = /<this message was edited>\s*$/i;
 const SYSTEM_SENDER_RE =
   /\b(changed|added|removed|left|joined|created|deleted|encrypted|pinned)\b/i;
 
-// URL-ish tokens: protocols and common short-link / maps hosts.
-const URL_RE =
-  /\b(?:https?:\/\/|www\.|wa\.me\/|maps\.app\.goo\.gl\/|maps\.google\.|goo\.gl\/|youtu\.be\/|t\.me\/|bit\.ly\/)\S+/gi;
+// Any link or shared location makes a message un-guessable, so messages that
+// contain one (even incidentally) are dropped entirely. Covers protocols, www,
+// bare domains with a path, common web TLDs, map/short-link hosts, and the
+// various location-share forms (geo: coords, "Location:", 📍 pins).
+const LINK_RES: RegExp[] = [
+  /\bhttps?:\/\//i,
+  /\bwww\.[a-z0-9-]/i,
+  /\b(?:maps\.google|google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl|g\.co|maps\.apple\.com|osm\.org|openstreetmap\.org)\b/i,
+  // dotted host whose last label before a path is alphabetic, e.g. foo.com/bar
+  /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\/\S*/i,
+  // bare domain on a common web TLD, e.g. example.com
+  /\b[a-z0-9-]+\.(?:com|net|org|io|app|dev|me|tv|info|xyz|gl|ly|gg|page)\b/i,
+  /\bgeo:-?\d/i,
+  /\blocation:/i,
+  /📍/u,
+  /\bshared (?:a )?(?:live )?location\b/i,
+];
+
+/** True if the message contains any URL/link or a shared location. */
+export function containsLink(body: string): boolean {
+  return LINK_RES.some((re) => re.test(body));
+}
 
 const LATIN_LETTER_RE = /\p{L}/gu;
 
@@ -56,25 +80,19 @@ function cleanBody(raw: string): string {
   return raw.replace(EDITED_MARKER_RE, "").trim();
 }
 
-function isMediaOnly(body: string): boolean {
-  return MEDIA_RE.test(body.trim());
+function countLetters(text: string): number {
+  return text.match(LATIN_LETTER_RE)?.length ?? 0;
 }
 
-/**
- * A message is "link-dominated" if, after removing URLs, almost no real text
- * remains — you cannot guess who sent a bare link. Messages where a link is
- * incidental to actual text are kept.
- */
-export function isLinkDominated(body: string): boolean {
-  if (!URL_RE.test(body)) {
-    URL_RE.lastIndex = 0;
-    return false;
-  }
-  URL_RE.lastIndex = 0;
-  const withoutUrls = body.replace(URL_RE, " ");
-  const letters = withoutUrls.match(LATIN_LETTER_RE)?.length ?? 0;
-  return letters < 8;
+/** Remove attached-media markers and tidy the leftover whitespace. */
+export function stripMediaMarkers(body: string): string {
+  return body
+    .replace(MEDIA_STRIP_RE, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ *\n */g, "\n")
+    .trim();
 }
+
 
 interface PendingMessage {
   sender: string;
@@ -216,8 +234,17 @@ export function parseWhatsAppChat(
 
   const flush = () => {
     if (!pending) return;
-    const body = cleanBody(pending.bodyLines.join("\n"));
-    if (body && !isMediaOnly(body) && !isLinkDominated(body)) {
+    let body = cleanBody(pending.bodyLines.join("\n"));
+    if (MEDIA_DETECT_RE.test(body)) {
+      // Strip the attachment marker; drop the message unless a substantial,
+      // guessable caption remains.
+      body = stripMediaMarkers(body);
+      if (countLetters(body) < MEDIA_CAPTION_MIN_LETTERS) {
+        pending = null;
+        return;
+      }
+    }
+    if (body && !containsLink(body)) {
       if (!seenRaw.has(pending.sender)) {
         seenRaw.add(pending.sender);
         rawOrder.push(pending.sender);

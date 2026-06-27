@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cleanFirstName, isLinkDominated, parseWhatsAppChat, slugify } from "./index";
+import {
+  cleanFirstName,
+  containsLink,
+  parseWhatsAppChat,
+  slugify,
+  stripMediaMarkers,
+} from "./index";
 
 // All fixtures below are SYNTHETIC — made-up names and messages. No real chat
 // content lives in the repo. \u escapes stand in for the invisible control
@@ -54,6 +60,21 @@ describe("parseWhatsAppChat", () => {
     expect(chat.messages.map((m) => m.body)).toEqual(["a real message"]);
   });
 
+  it("handles attached-media messages: drop trivial, keep substantial captions", () => {
+    const raw = [
+      "[1.1.2024, 09.00.00] Alice: image omitted",
+      "[1.1.2024, 09.00.01] Bob: Done!! image omitted",
+      "[1.1.2024, 09.00.02] Carol: Quack 🦆 image omitted",
+      "[1.1.2024, 09.00.03] Dave: Is this anyone's? image omitted",
+      "[1.1.2024, 09.00.04] Erin: photo omitted The car is here already",
+    ].join("\n");
+    const chat = parse(raw);
+    expect(chat.messages.map((m) => `${m.participant}: ${m.body}`)).toEqual([
+      "Dave: Is this anyone's?",
+      "Erin: The car is here already",
+    ]);
+  });
+
   it("drops system / notification lines", () => {
     const raw = [
       `[1.1.2024, 08.00.00] ${LRM}Messages and calls are end-to-end encrypted. Tap to learn more.`,
@@ -80,15 +101,17 @@ describe("parseWhatsAppChat", () => {
     expect(chat.messages[0].participant).toBe("Tom");
   });
 
-  it("drops link-dominated messages but keeps incidental links", () => {
+  it("drops every message containing a link or location, even incidental ones", () => {
     const raw = [
       "[1.1.2024, 09.00.00] Alice: https://maps.app.goo.gl/abcdef123",
       "[1.1.2024, 09.00.01] Bob: www.youtube.com/watch?v=xyz",
       "[1.1.2024, 09.00.02] Carol: check this place out https://maps.app.goo.gl/xyz",
+      "[1.1.2024, 09.00.03] Dave: 📍 we are meeting right here at noon",
+      "[1.1.2024, 09.00.04] Erin: this is a totally normal guessable sentence",
     ].join("\n");
     const chat = parse(raw);
     expect(chat.messages.map((m) => m.body)).toEqual([
-      "check this place out https://maps.app.goo.gl/xyz",
+      "this is a totally normal guessable sentence",
     ]);
   });
 
@@ -188,15 +211,38 @@ describe("name disambiguation", () => {
   });
 });
 
-describe("isLinkDominated", () => {
-  it("flags bare links and link-only messages", () => {
-    expect(isLinkDominated("https://maps.app.goo.gl/abc")).toBe(true);
-    expect(isLinkDominated("www.youtu.be/xyz")).toBe(true);
+describe("stripMediaMarkers", () => {
+  it("removes markers anywhere and tidies whitespace", () => {
+    expect(stripMediaMarkers("Is this anyone's? image omitted")).toBe(
+      "Is this anyone's?",
+    );
+    expect(stripMediaMarkers("<Media omitted>")).toBe("");
+    expect(stripMediaMarkers("Booking.pdf document omitted")).toBe("Booking.pdf");
+  });
+});
+
+describe("containsLink (strict)", () => {
+  it("flags protocols, www and bare domains", () => {
+    expect(containsLink("look at this https://example.com/page")).toBe(true);
+    expect(containsLink("www.youtu.be/xyz")).toBe(true);
+    expect(containsLink("go to example.com tomorrow")).toBe(true);
+    expect(containsLink("ref bit.ly/abc now")).toBe(true);
   });
 
-  it("keeps messages with real text around a link", () => {
-    expect(isLinkDominated("look at this https://example.com/page")).toBe(false);
-    expect(isLinkDominated("no links here at all")).toBe(false);
+  it("flags google maps / location shares of every form", () => {
+    expect(containsLink("https://maps.app.goo.gl/abc")).toBe(true);
+    expect(containsLink("https://maps.google.com/?q=1,2")).toBe(true);
+    expect(containsLink("https://www.google.com/maps/place/x")).toBe(true);
+    expect(containsLink("goo.gl/maps/xyz")).toBe(true);
+    expect(containsLink("geo:48.85,2.35")).toBe(true);
+    expect(containsLink("Location: 48.85, 2.35")).toBe(true);
+    expect(containsLink("📍 right here")).toBe(true);
+  });
+
+  it("does not flag ordinary sentences with punctuation", () => {
+    expect(containsLink("ok. see you there tomorrow at 3.30")).toBe(false);
+    expect(containsLink("haha no way that happened")).toBe(false);
+    expect(containsLink("the ratio was 3.30/4 roughly")).toBe(false);
   });
 });
 

@@ -22,8 +22,11 @@ card, Supabase Postgres read at runtime via the anon key.
   `[ts] Sender: body`; anything else after a `[ts]` (encryption notice, "X added Y",
   media placeholders, etc.) is treated as a system line and dropped while still
   terminating the previous (multi-line) message. Timestamps parsed as UTC for
-  deterministic tests. Also drops **link-dominated** messages (`isLinkDominated`:
-  a URL with <8 letters of real text left). Sender names are normalised to a
+  deterministic tests. **Attached media** (`image omitted`, `<Media omitted>`,
+  etc.) is stripped in-place (`stripMediaMarkers`); the message is dropped unless
+  a substantial caption (≥8 letters) remains. **Links/locations are strict**:
+  `containsLink` drops ANY message with a URL/bare-domain/map/location-pin (no
+  incidental-link keeping — they aren't guessable). Sender names are normalised to a
   **title-cased first name** (`cleanFirstName`: strips `~`, parenthetical tags,
   emoji/non-Latin decorations, joke suffixes like "Big Ass"); within a chat,
   first-name clashes are disambiguated minimally (last initial → tag → number),
