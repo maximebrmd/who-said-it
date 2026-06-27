@@ -2,14 +2,41 @@
 
 import { useEffect, useState } from "react";
 import { MessageCard3D } from "@/components/MessageCard3D";
+import { Confetti } from "@/components/Confetti";
 import { getChats } from "@/lib/game/data";
+import { gradePickName, gradeYesNo } from "@/lib/game/round";
+import { playCorrectChime } from "@/lib/game/sound";
 import { useGame } from "@/lib/game/useGame";
 import type { Chat, GameMode } from "@/lib/game/types";
 
-const MODES: { id: GameMode; label: string; blurb: string }[] = [
-  { id: "yes-no", label: "Yes / No", blurb: "We name someone — did they really say it?" },
-  { id: "pick-name", label: "Pick the name", blurb: "Tap who actually said it." },
+const MODES: { id: GameMode; label: string; blurb: string; emoji: string }[] = [
+  { id: "yes-no", label: "Yes / No", blurb: "We name someone — did they really say it?", emoji: "🤔" },
+  { id: "pick-name", label: "Pick the name", blurb: "Tap who actually said it.", emoji: "🎯" },
 ];
+
+const display = "font-[family-name:var(--font-display)]";
+
+type Variant = "yellow" | "teal" | "pink" | "purple";
+
+const VARIANTS: Record<Variant, string> = {
+  yellow: "bg-yellow-300 text-purple-950 border-yellow-500",
+  teal: "bg-teal-300 text-teal-950 border-teal-500",
+  pink: "bg-pink-400 text-white border-pink-600",
+  purple: "bg-fuchsia-500 text-white border-fuchsia-700",
+};
+
+function PartyButton({
+  variant = "yellow",
+  className = "",
+  ...props
+}: { variant?: Variant } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={`${display} ${VARIANTS[variant]} rounded-2xl border-b-[6px] px-6 py-4 text-xl font-bold shadow-lg transition-all duration-100 hover:-translate-y-0.5 hover:brightness-105 active:translate-y-1 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    />
+  );
+}
 
 export default function Home() {
   const { state, start, answerYesNo, answerPick, next, reset } = useGame();
@@ -26,6 +53,20 @@ export default function Home() {
       .catch(() => setChats([]));
   }, []);
 
+  // Celebrate inside the click gesture so audio is allowed to play.
+  const onYesNo = (yes: boolean) => {
+    if (state.round?.mode === "yes-no" && !state.result) {
+      if (gradeYesNo(state.round, yes).correct) playCorrectChime();
+    }
+    answerYesNo(yes);
+  };
+  const onPick = (name: string) => {
+    if (state.round?.mode === "pick-name" && !state.result) {
+      if (gradePickName(state.round, name).correct) playCorrectChime();
+    }
+    answerPick(name);
+  };
+
   if (state.status === "start" || state.status === "loading") {
     return (
       <StartScreen
@@ -40,8 +81,10 @@ export default function Home() {
     );
   }
 
+  const celebrate = Boolean(state.result?.correct);
+
   return (
-    <main className="flex h-dvh flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-slate-100">
+    <main className="flex h-dvh flex-col text-fuchsia-50">
       <Hud state={state} onQuit={reset} />
 
       <div className="relative min-h-0 flex-1">
@@ -52,19 +95,20 @@ export default function Home() {
             tone={state.result ? (state.result.correct ? "correct" : "wrong") : "neutral"}
           />
         )}
+        {celebrate && state.round && <Confetti fireKey={state.round.message.id} />}
       </div>
 
       <div className="px-4 pb-8">
         {state.status === "error" && (
-          <p className="mx-auto max-w-md text-center text-rose-300">{state.error}</p>
+          <p className="mx-auto max-w-md text-center font-bold text-rose-200">{state.error}</p>
         )}
         {state.round &&
           (state.result ? (
             <Reveal result={state.result} onNext={next} />
           ) : state.round.mode === "yes-no" ? (
-            <YesNoControls claim={state.round.claim} onAnswer={answerYesNo} />
+            <YesNoControls claim={state.round.claim} onAnswer={onYesNo} />
           ) : (
-            <PickControls choices={state.round.choices} onAnswer={answerPick} />
+            <PickControls choices={state.round.choices} onAnswer={onPick} />
           ))}
       </div>
     </main>
@@ -89,17 +133,21 @@ function StartScreen({
   onStart: () => void;
 }) {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 px-6 text-slate-100">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-10 px-6 py-10 text-fuchsia-50">
       <div className="text-center">
-        <h1 className="text-5xl font-black tracking-tight">who said it?</h1>
-        <p className="mt-3 max-w-md text-slate-400">
-          Guess who really sent each message from the group chat.
+        <h1
+          className={`${display} text-6xl font-bold tracking-tight text-yellow-300 drop-shadow-[0_4px_0_rgba(0,0,0,0.25)] sm:text-7xl`}
+        >
+          who said it?
+        </h1>
+        <p className="mt-4 max-w-md text-lg font-semibold text-fuchsia-100">
+          Guess who really sent each message from the group chat. 🎉
         </p>
       </div>
 
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md space-y-7">
         <div>
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
+          <p className={`${display} mb-3 text-sm font-bold uppercase tracking-widest text-teal-200`}>
             Game mode
           </p>
           <div className="grid grid-cols-2 gap-3">
@@ -107,14 +155,16 @@ function StartScreen({
               <button
                 key={m.id}
                 onClick={() => onMode(m.id)}
-                className={`rounded-2xl border p-4 text-left transition ${
+                className={`rounded-3xl border-b-[6px] p-4 text-left transition-all duration-100 active:translate-y-1 active:border-b-2 ${
                   mode === m.id
-                    ? "border-emerald-400 bg-emerald-400/10"
-                    : "border-slate-700 bg-slate-800/50 hover:border-slate-500"
+                    ? "border-yellow-500 bg-yellow-300 text-purple-950"
+                    : "border-fuchsia-900/60 bg-white/10 text-fuchsia-50 hover:bg-white/15"
                 }`}
               >
-                <span className="block font-bold">{m.label}</span>
-                <span className="mt-1 block text-xs text-slate-400">{m.blurb}</span>
+                <span className={`${display} block text-lg font-bold`}>
+                  {m.emoji} {m.label}
+                </span>
+                <span className="mt-1 block text-xs font-semibold opacity-80">{m.blurb}</span>
               </button>
             ))}
           </div>
@@ -123,7 +173,7 @@ function StartScreen({
         <div>
           <label
             htmlFor="chat"
-            className="mb-2 block text-sm font-semibold uppercase tracking-wide text-slate-400"
+            className={`${display} mb-3 block text-sm font-bold uppercase tracking-widest text-teal-200`}
           >
             Chat
           </label>
@@ -131,24 +181,20 @@ function StartScreen({
             id="chat"
             value={slug}
             onChange={(e) => onSlug(e.target.value)}
-            className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-100"
+            className={`${display} w-full rounded-2xl border-b-[6px] border-fuchsia-900/60 bg-white/10 px-4 py-3 text-lg font-bold text-fuchsia-50 outline-none`}
           >
-            {chats.length === 0 && <option>Loading…</option>}
+            {chats.length === 0 && <option className="text-black">Loading…</option>}
             {chats.map((c) => (
-              <option key={c.slug} value={c.slug}>
+              <option key={c.slug} value={c.slug} className="text-black">
                 {c.name}
               </option>
             ))}
           </select>
         </div>
 
-        <button
-          onClick={onStart}
-          disabled={!slug || loading}
-          className="w-full rounded-xl bg-emerald-500 px-4 py-4 text-lg font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50"
-        >
-          {loading ? "Loading…" : "Play"}
-        </button>
+        <PartyButton variant="yellow" onClick={onStart} disabled={!slug || loading} className="w-full text-2xl">
+          {loading ? "Loading…" : "Play! 🎈"}
+        </PartyButton>
       </div>
     </main>
   );
@@ -163,23 +209,34 @@ function Hud({
 }) {
   return (
     <header className="flex items-center justify-between px-4 py-4">
-      <button onClick={onQuit} className="text-sm text-slate-400 hover:text-slate-200">
+      <button
+        onClick={onQuit}
+        className={`${display} rounded-full bg-white/15 px-4 py-2 text-sm font-bold text-fuchsia-50 transition hover:bg-white/25`}
+      >
         ← Menu
       </button>
-      <div className="flex gap-5 text-sm">
-        <Stat label="Score" value={`${state.score}/${state.total}`} />
-        <Stat label="Streak" value={state.streak} />
-        <Stat label="Best" value={state.bestStreak} />
+      <div className="flex gap-2">
+        <Stat label="Score" value={`${state.score}/${state.total}`} variant="teal" />
+        <Stat label="Streak" value={`🔥 ${state.streak}`} variant="pink" />
+        <Stat label="Best" value={state.bestStreak} variant="yellow" />
       </div>
     </header>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({
+  label,
+  value,
+  variant,
+}: {
+  label: string;
+  value: string | number;
+  variant: Variant;
+}) {
   return (
-    <div className="text-center">
-      <div className="text-lg font-bold tabular-nums">{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+    <div className={`${VARIANTS[variant]} rounded-2xl border-b-4 px-3 py-1.5 text-center`}>
+      <div className={`${display} text-lg font-bold tabular-nums leading-none`}>{value}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">{label}</div>
     </div>
   );
 }
@@ -193,22 +250,16 @@ function YesNoControls({
 }) {
   return (
     <div className="mx-auto max-w-md text-center">
-      <p className="mb-4 text-lg">
-        Did <span className="font-bold text-emerald-300">{claim}</span> say this?
+      <p className={`${display} mb-4 text-xl font-bold`}>
+        Did <span className="text-yellow-300">{claim}</span> say this?
       </p>
       <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => onAnswer(false)}
-          className="rounded-xl bg-rose-500 px-4 py-4 text-lg font-bold text-white transition hover:bg-rose-400"
-        >
-          No
-        </button>
-        <button
-          onClick={() => onAnswer(true)}
-          className="rounded-xl bg-emerald-500 px-4 py-4 text-lg font-bold text-slate-950 transition hover:bg-emerald-400"
-        >
-          Yes
-        </button>
+        <PartyButton variant="pink" onClick={() => onAnswer(false)} className="text-2xl">
+          👎 No
+        </PartyButton>
+        <PartyButton variant="teal" onClick={() => onAnswer(true)} className="text-2xl">
+          👍 Yes
+        </PartyButton>
       </div>
     </div>
   );
@@ -223,16 +274,17 @@ function PickControls({
 }) {
   return (
     <div className="mx-auto max-w-md text-center">
-      <p className="mb-4 text-lg">Who said this?</p>
+      <p className={`${display} mb-4 text-xl font-bold`}>Who said this? 🕵️</p>
       <div className="grid grid-cols-2 gap-3">
-        {choices.map((name) => (
-          <button
+        {choices.map((name, i) => (
+          <PartyButton
             key={name}
+            variant={(["purple", "teal", "pink", "yellow"] as Variant[])[i % 4]}
             onClick={() => onAnswer(name)}
-            className="rounded-xl bg-slate-700 px-4 py-4 font-semibold text-slate-100 transition hover:bg-slate-600"
+            className="text-lg"
           >
             {name}
-          </button>
+          </PartyButton>
         ))}
       </div>
     </div>
@@ -249,21 +301,18 @@ function Reveal({
   return (
     <div className="mx-auto max-w-md text-center">
       <p
-        className={`mb-1 text-2xl font-black ${
-          result.correct ? "text-emerald-300" : "text-rose-300"
+        className={`${display} animate-pop-in mb-1 text-4xl font-bold ${
+          result.correct ? "text-teal-300" : "text-pink-300"
         }`}
       >
-        {result.correct ? "Correct!" : "Nope"}
+        {result.correct ? "🎉 Correct!" : "😬 Nope"}
       </p>
-      <p className="mb-4 text-slate-300">
-        It was <span className="font-bold">{result.author}</span>.
+      <p className="mb-4 text-lg font-semibold text-fuchsia-100">
+        It was <span className={`${display} font-bold text-yellow-300`}>{result.author}</span>.
       </p>
-      <button
-        onClick={onNext}
-        className="w-full rounded-xl bg-emerald-500 px-4 py-4 text-lg font-bold text-slate-950 transition hover:bg-emerald-400"
-      >
-        Next →
-      </button>
+      <PartyButton variant="yellow" onClick={onNext} className="w-full text-2xl">
+        Next round →
+      </PartyButton>
     </div>
   );
 }

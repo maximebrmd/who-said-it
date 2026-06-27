@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Rich party-game backdrop: deep purple with magenta/teal light pops. */
+  background:
+    radial-gradient(circle at 12% 12%, rgba(236, 72, 153, 0.45), transparent 42%),
+    radial-gradient(circle at 88% 18%, rgba(34, 211, 238, 0.4), transparent 44%),
+    radial-gradient(circle at 50% 110%, rgba(250, 204, 21, 0.3), transparent 50%),
+    linear-gradient(160deg, #2e1065 0%, #4c1d95 45%, #6d28d9 100%);
+  background-attachment: fixed;
+  color: #fdf4ff;
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+/* Confetti burst — pieces fly outward/down and fade. */
+@keyframes confetti-pop {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+    opacity: 0;
+  }
+}
+
+.confetti-piece {
+  border-radius: 2px;
+  animation-name: confetti-pop;
+  animation-timing-function: cubic-bezier(0.1, 0.6, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+/* Springy pop for reveal text / cards. */
+@keyframes pop-in {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+.animate-wiggle {
+  animation: wiggle 0.4s ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece,
+  .animate-pop-in,
+  .animate-wiggle {
+    animation: none;
+  }
 }

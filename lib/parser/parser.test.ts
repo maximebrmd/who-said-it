@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWhatsAppChat, slugify } from "./index";
+import { cleanFirstName, isLinkDominated, parseWhatsAppChat, slugify } from "./index";
 
 // All fixtures below are SYNTHETIC — made-up names and messages. No real chat
 // content lives in the repo. \u escapes stand in for the invisible control
@@ -74,10 +74,22 @@ describe("parseWhatsAppChat", () => {
     expect(chat.messages[0].body).toBe("hi there");
   });
 
-  it("strips the leading ~ from non-contact sender names", () => {
-    const raw = `[1.1.2024, 09.00.00] ${LRM}~ Tom Rozand: yo`;
+  it("normalizes a non-contact sender to a clean first name", () => {
+    const raw = `[1.1.2024, 09.00.00] ${LRM}~ Tom Rozand: this is a real message`;
     const chat = parse(raw);
-    expect(chat.messages[0].participant).toBe("Tom Rozand");
+    expect(chat.messages[0].participant).toBe("Tom");
+  });
+
+  it("drops link-dominated messages but keeps incidental links", () => {
+    const raw = [
+      "[1.1.2024, 09.00.00] Alice: https://maps.app.goo.gl/abcdef123",
+      "[1.1.2024, 09.00.01] Bob: www.youtube.com/watch?v=xyz",
+      "[1.1.2024, 09.00.02] Carol: check this place out https://maps.app.goo.gl/xyz",
+    ].join("\n");
+    const chat = parse(raw);
+    expect(chat.messages.map((m) => m.body)).toEqual([
+      "check this place out https://maps.app.goo.gl/xyz",
+    ]);
   });
 
   it("unwraps @-mention isolates but keeps the name readable", () => {
@@ -136,6 +148,55 @@ describe("parseWhatsAppChat", () => {
     const chat = parse("[1.1.2024, 09.00.00] Alice: ratio is 3:1 today");
     expect(chat.messages[0].participant).toBe("Alice");
     expect(chat.messages[0].body).toBe("ratio is 3:1 today");
+  });
+});
+
+describe("cleanFirstName", () => {
+  it("collapses to a title-cased first name", () => {
+    expect(cleanFirstName("Tom Rozand")).toBe("Tom");
+    expect(cleanFirstName("Marina Goldoni")).toBe("Marina");
+  });
+
+  it("title-cases all-caps names", () => {
+    expect(cleanFirstName("KANITTA")).toBe("Kanitta");
+  });
+
+  it("drops joke / qualifier suffixes", () => {
+    expect(cleanFirstName("Nico Big Ass")).toBe("Nico");
+    expect(cleanFirstName("Lucía Big Tits")).toBe("Lucía");
+  });
+
+  it("drops parenthetical tags and non-Latin / emoji decorations", () => {
+    expect(cleanFirstName("Luca ก๊าบ ก๊าบ (Average)")).toBe("Luca");
+    expect(cleanFirstName("Patatas in Tailandia 🇹🇭")).toBe("Patatas");
+    expect(cleanFirstName("~ Peter 🎉")).toBe("Peter");
+  });
+});
+
+describe("name disambiguation", () => {
+  it("disambiguates two participants that share a first name", () => {
+    const raw = [
+      "[1.1.2024, 09.00.00] Luca: first luca speaking here",
+      "[1.1.2024, 09.00.01] Luca (Average): second luca speaking here",
+    ].join("\n");
+    const chat = parse(raw);
+    expect(chat.participants).toEqual(["Luca", "Luca (Average)"]);
+    expect(chat.messages.map((m) => m.participant)).toEqual([
+      "Luca",
+      "Luca (Average)",
+    ]);
+  });
+});
+
+describe("isLinkDominated", () => {
+  it("flags bare links and link-only messages", () => {
+    expect(isLinkDominated("https://maps.app.goo.gl/abc")).toBe(true);
+    expect(isLinkDominated("www.youtu.be/xyz")).toBe(true);
+  });
+
+  it("keeps messages with real text around a link", () => {
+    expect(isLinkDominated("look at this https://example.com/page")).toBe(false);
+    expect(isLinkDominated("no links here at all")).toBe(false);
   });
 });
 

@@ -22,7 +22,12 @@ card, Supabase Postgres read at runtime via the anon key.
   `[ts] Sender: body`; anything else after a `[ts]` (encryption notice, "X added Y",
   media placeholders, etc.) is treated as a system line and dropped while still
   terminating the previous (multi-line) message. Timestamps parsed as UTC for
-  deterministic tests.
+  deterministic tests. Also drops **link-dominated** messages (`isLinkDominated`:
+  a URL with <8 letters of real text left). Sender names are normalised to a
+  **title-cased first name** (`cleanFirstName`: strips `~`, parenthetical tags,
+  emoji/non-Latin decorations, joke suffixes like "Big Ass"); within a chat,
+  first-name clashes are disambiguated minimally (last initial → tag → number),
+  e.g. redbar has `Luca` and `Luca (Average)`.
 - `lib/game/round.ts` — pure round building + grading, takes an injectable
   `Rng` so logic is unit-tested deterministically. `useGame.ts` holds score/streak
   and a prefetched message queue (refills from `data.ts`).
@@ -32,8 +37,17 @@ card, Supabase Postgres read at runtime via the anon key.
 - `components/MessageCard3D.tsx` — single `<Canvas>`, the card mesh + drei `<Text>`,
   animated only via `useFrame` (no per-frame setState, no in-frame allocations).
   The card is keyed by message id so the enter animation replays each round.
+  Timing uses a per-card **`THREE.Timer`** (replacing the deprecated `THREE.Clock`).
+  **In three 0.185 `Timer` is in core** — `import { Timer } from "three"`, NOT
+  `three/addons/misc/Timer.js` (that path no longer exists this version).
 - Game-screen layout uses `h-dvh` + `flex-1 min-h-0` so the R3F Canvas gets a
   resolvable height (with `min-h-dvh` the canvas collapses to a tiny strip).
+- **Visual theme** is a bright "Use Your Words"-style party-game look (Fredoka
+  display font, saturated purple/magenta/teal/yellow, chunky `border-b` 3D
+  buttons). Celebratory feedback on a correct answer: self-contained DOM/CSS
+  `components/Confetti.tsx` (no dep; seeded mulberry32 PRNG so render is pure —
+  `Math.random` in render trips the `react-hooks/purity` lint rule) + a guarded
+  WebAudio chime in `lib/game/sound.ts`, fired inside the click gesture.
 
 ## Supabase data pipeline
 
