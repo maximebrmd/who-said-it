@@ -103,9 +103,44 @@ export type Database = {
           },
         ]
       }
-      room_answers: {
+      room_answer_secrets: {
         Row: {
           answer: string
+          player_id: string
+          room_id: string
+          round: number
+        }
+        Insert: {
+          answer: string
+          player_id: string
+          room_id: string
+          round: number
+        }
+        Update: {
+          answer?: string
+          player_id?: string
+          room_id?: string
+          round?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_answer_secrets_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "room_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_answer_secrets_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_answers: {
+        Row: {
           answered_at: string
           id: string
           is_correct: boolean
@@ -114,7 +149,6 @@ export type Database = {
           round: number
         }
         Insert: {
-          answer: string
           answered_at?: string
           id?: string
           is_correct: boolean
@@ -123,7 +157,6 @@ export type Database = {
           round: number
         }
         Update: {
-          answer?: string
           answered_at?: string
           id?: string
           is_correct?: boolean
