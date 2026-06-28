@@ -267,7 +267,6 @@ export function useRoom(code: string) {
                   room_id: roomId,
                   round,
                   player_id: id.playerId,
-                  answer: value,
                   is_correct: correct,
                 },
               ],

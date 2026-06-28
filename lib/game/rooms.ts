@@ -158,11 +158,11 @@ export type RoomPlayer = Pick<
 >;
 export type RoomAnswer = Pick<
   Tables<"room_answers">,
-  "id" | "room_id" | "round" | "player_id" | "answer" | "is_correct"
+  "id" | "room_id" | "round" | "player_id" | "is_correct"
 >;
 
 const PLAYER_COLS = "id, room_id, name, score, is_host, joined_at, last_seen";
-const ANSWER_COLS = "id, room_id, round, player_id, answer, is_correct";
+const ANSWER_COLS = "id, room_id, round, player_id, is_correct";
 
 export async function fetchRoomByCode(code: string): Promise<Room | null> {
   const { data, error } = await requireSupabase()

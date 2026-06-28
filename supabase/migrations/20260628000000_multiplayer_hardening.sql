@@ -264,6 +264,21 @@ $$;
 alter table public.room_players drop column token;
 
 -- ---------------------------------------------------------------------------
+-- 3. Mid-round answer leak: room_answers has a public read policy AND rides the
+--    supabase_realtime publication, so during 'answering' every submitted row
+--    (including `answer`, the guessed author) was readable by clients that had
+--    not yet answered — letting a later answerer read an earlier player's guess
+--    and a correct `is_correct=true` row to deduce the author. Column-level
+--    GRANTs (mirroring room_players) hide `answer` from every REST response and
+--    realtime payload while still exposing what the UI needs: who answered
+--    (player_id) and the per-player reveal verdict (is_correct). `answer` alone
+--    is server-side-only now; the round still grades and reveals server-side.
+-- ---------------------------------------------------------------------------
+revoke select on public.room_answers from anon, authenticated;
+grant select (id, room_id, round, player_id, is_correct)
+  on public.room_answers to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- reconcile_room: re-evaluate the all-answered reveal check so a round can
 -- recover when a player disconnects after everyone else has answered (the ghost
 -- ages out of the 30s active window). Mirrors the reveal tail of submit_answer.
