@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MessageCard3D } from "@/components/MessageCard3D";
 import { Confetti } from "@/components/Confetti";
+import { PartyButton, VARIANTS, display, type Variant } from "@/components/PartyButton";
 import { getChats } from "@/lib/game/data";
 import { gradePickName, gradeYesNo } from "@/lib/game/round";
 import { playCorrectChime } from "@/lib/game/sound";
@@ -13,30 +15,6 @@ const MODES: { id: GameMode; label: string; blurb: string; emoji: string }[] = [
   { id: "yes-no", label: "Yes / No", blurb: "We name someone — did they really say it?", emoji: "🤔" },
   { id: "pick-name", label: "Pick the name", blurb: "Tap who actually said it.", emoji: "🎯" },
 ];
-
-const display = "font-[family-name:var(--font-display)]";
-
-type Variant = "yellow" | "teal" | "pink" | "purple";
-
-const VARIANTS: Record<Variant, string> = {
-  yellow: "bg-yellow-300 text-purple-950 border-yellow-500",
-  teal: "bg-teal-300 text-teal-950 border-teal-500",
-  pink: "bg-pink-400 text-white border-pink-600",
-  purple: "bg-fuchsia-500 text-white border-fuchsia-700",
-};
-
-function PartyButton({
-  variant = "yellow",
-  className = "",
-  ...props
-}: { variant?: Variant } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...props}
-      className={`${display} ${VARIANTS[variant]} rounded-2xl border-b-[6px] px-6 py-4 text-xl font-bold shadow-lg transition-all duration-100 hover:-translate-y-0.5 hover:brightness-105 active:translate-y-1 active:border-b-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-    />
-  );
-}
 
 export default function Home() {
   const { state, start, answerYesNo, answerPick, next, reset } = useGame();
@@ -193,8 +171,20 @@ function StartScreen({
         </div>
 
         <PartyButton variant="yellow" onClick={onStart} disabled={!slug || loading} className="w-full text-2xl">
-          {loading ? "Loading…" : "Play! 🎈"}
+          {loading ? "Loading…" : "Play solo! 🎈"}
         </PartyButton>
+
+        <div className="flex items-center gap-3 text-fuchsia-200/70">
+          <span className="h-px flex-1 bg-fuchsia-200/30" />
+          <span className={`${display} text-xs font-bold uppercase tracking-widest`}>or</span>
+          <span className="h-px flex-1 bg-fuchsia-200/30" />
+        </div>
+
+        <Link href="/rooms" className="block">
+          <PartyButton variant="purple" className="w-full text-2xl">
+            Play with friends 🎉
+          </PartyButton>
+        </Link>
       </div>
     </main>
   );

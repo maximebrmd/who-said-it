@@ -52,6 +52,50 @@ card, Supabase Postgres read at runtime via the anon key.
   `Math.random` in render trips the `react-hooks/purity` lint rule) + a guarded
   WebAudio chime in `lib/game/sound.ts`, fired inside the click gesture.
 
+## Multiplayer rooms (Supabase Realtime)
+
+- Additive mode under `app/rooms/` (`/rooms` join/create landing, `/rooms/new`
+  create form, `/rooms/[code]` lobby+game+results). Solo (`app/page.tsx`) is
+  unchanged and still runs with **no env**. Multiplayer **requires** Supabase.
+- **Rounds are pre-generated client-side by the creator** (reusing `buildRound`)
+  and stored in a **private** `room_rounds` table (no anon access) so clients
+  can't read upcoming authors. The public `rooms` row mirrors only the *current*
+  round's question; `round_message_author` is filled **only on reveal**.
+- **All writes go through `SECURITY DEFINER` RPCs** (`create_room`, `join_room`,
+  `start_room`, `submit_answer`, `advance_room`, `reconcile_room`, `heartbeat`);
+  base tables grant anon **SELECT only**. `submit_answer` grades server-side (no
+  client self-score) and flips to reveal when `answers == active players` (active
+  = `last_seen` within 30s, kept fresh by `heartbeat`). `advance_room` is
+  **idempotent** (locks the room, only advances from a reveal **after a 3s
+  server-side minimum reveal window** — deliberately shorter than the client's
+  `REVEAL_MS` 4000ms so the legit advance always passes but an attacker can't
+  truncate the reveal to zero), so every client schedules it after the reveal
+  delay and the first caller wins — no host clicking, no host dependency.
+  `reconcile_room` re-runs the all-answered reveal check so a round can't stall
+  if a player disconnects after everyone else has answered (the ghost ages out of
+  the 30s window); any still-present client nudges it. Per-player secret `token`
+  (returned by join) lives in a **private `room_player_secrets` table** (no anon
+  grant, not in the realtime publication, so it can never ride a broadcast row)
+  and authorizes submit/heartbeat/start. The submitted guess is likewise moved to
+  a private **`room_answer_secrets`** table; `room_answers` keeps only
+  `is_correct` + who answered (the `answer` column is dropped) so a late answerer
+  can't read earlier guesses off `postgres_changes`. `lib/game/rooms.ts` = pure
+  `buildRoundsPayload` (unit-tested) + RPC wrappers + sessionStorage identity;
+  `lib/game/useRoom.ts` = realtime subscriptions + presence + heartbeat + advance
+  + reconcile.
+- **Realtime needs the JWT `anon` key, NOT a `sb_publishable_…` key.** PostgREST
+  reads + RPCs work with either, but `postgres_changes` is silently delivered to
+  nobody with a publishable key — Realtime needs the role claim in the JWT to run
+  the RLS check. Use the legacy `anon` JWT in `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- **Give each Realtime channel a unique topic** (`room:<id>:<seq>` via a module
+  counter in `useRoom`). React StrictMode double-mounts the effect; two channels
+  with the *same* topic on the shared client collide (the re-subscribe races the
+  async teardown) and one tab silently stops receiving `postgres_changes`.
+- `supabase-axi gen types typescript` **wraps** its output in a YAML-ish envelope
+  (`types: "…\n…"`, truncated unless `--full`); it does **not** write raw TS. To
+  regenerate `database.types.ts`, capture `--full` and JSON-unescape the `types:`
+  string (see git history) — don't redirect it straight to the file.
+
 ## Supabase data pipeline
 
 - All Supabase work via the **`supabase-axi`** CLI (not raw psql). Auth:
