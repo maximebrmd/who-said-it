@@ -148,6 +148,29 @@ export type Database = {
           },
         ]
       }
+      room_player_secrets: {
+        Row: {
+          player_id: string
+          token: string
+        }
+        Insert: {
+          player_id: string
+          token?: string
+        }
+        Update: {
+          player_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_player_secrets_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "room_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_players: {
         Row: {
           id: string
@@ -157,7 +180,6 @@ export type Database = {
           name: string
           room_id: string
           score: number
-          token: string
         }
         Insert: {
           id?: string
@@ -167,7 +189,6 @@ export type Database = {
           name: string
           room_id: string
           score?: number
-          token?: string
         }
         Update: {
           id?: string
@@ -177,7 +198,6 @@ export type Database = {
           name?: string
           room_id?: string
           score?: number
-          token?: string
         }
         Relationships: [
           {
@@ -318,6 +338,7 @@ export type Database = {
           token: string
         }[]
       }
+      reconcile_room: { Args: { p_room_id: string }; Returns: undefined }
       start_room: {
         Args: { p_player_id: string; p_room_id: string; p_token: string }
         Returns: undefined

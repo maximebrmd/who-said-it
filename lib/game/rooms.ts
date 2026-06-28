@@ -135,6 +135,15 @@ export async function advanceRoom(roomId: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Re-evaluate the all-answered reveal check so a round recovers when a player
+ * disconnects after everyone else has answered. Idempotent server-side.
+ */
+export async function reconcileRoom(roomId: string): Promise<void> {
+  const { error } = await requireSupabase().rpc("reconcile_room", { p_room_id: roomId });
+  if (error) throw error;
+}
+
 export async function heartbeat(id: PlayerIdentity): Promise<void> {
   await requireSupabase().rpc("heartbeat", { p_player_id: id.playerId, p_token: id.token });
 }

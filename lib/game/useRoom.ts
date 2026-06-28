@@ -14,6 +14,7 @@ import {
   heartbeat,
   joinRoom,
   loadIdentity,
+  reconcileRoom,
   saveIdentity,
   startRoom,
   submitAnswer,
@@ -66,6 +67,9 @@ export function useRoom(code: string) {
   const identityRef = useRef<PlayerIdentity | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while we've answered the current round but it's still in 'answering' —
+  // a disconnected player can leave it stuck, so we periodically nudge the server.
+  const reconcileNeededRef = useRef(false);
 
   // Load any existing identity for this room on mount (per-session, no accounts).
   useEffect(() => {
@@ -194,12 +198,25 @@ export function useRoom(code: string) {
     };
   }, [code, onRoom, refetchAnswers, refetchPlayers, trackPresence]);
 
-  // Heartbeat so this player counts as active for the all-answered check.
+  // Keep the reconcile flag fresh: we've answered but the round hasn't revealed.
+  useEffect(() => {
+    reconcileNeededRef.current =
+      state.room?.status === "playing" &&
+      state.room?.round_phase === "answering" &&
+      state.answers.some((a) => a.player_id === state.identity?.playerId);
+  }, [state.room?.status, state.room?.round_phase, state.answers, state.identity]);
+
+  // Heartbeat so this player counts as active for the all-answered check. Also
+  // nudges reconcile_room when we've answered but the round is stuck (a player
+  // disconnected after everyone else answered, so it never flipped to reveal).
   useEffect(() => {
     if (!state.identity) return;
     void heartbeat(state.identity).catch(() => {});
     const t = setInterval(() => {
       if (identityRef.current) void heartbeat(identityRef.current).catch(() => {});
+      if (reconcileNeededRef.current && roomIdRef.current) {
+        void reconcileRoom(roomIdRef.current).catch(() => {});
+      }
     }, HEARTBEAT_MS);
     return () => clearInterval(t);
   }, [state.identity]);

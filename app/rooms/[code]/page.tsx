@@ -252,11 +252,15 @@ function GameView({ room }: { room: ReturnType<typeof useRoom> }) {
   // Lock submission while a round's answer is in flight; `answer()` resolves
   // before the round advances, so the lock clears itself in `finally`.
   const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const onAnswer = async (value: string) => {
     if (answered || busy) return;
     setBusy(true);
+    setSubmitError(null);
     try {
       await room.answer(value);
+    } catch {
+      setSubmitError("Couldn't submit — tap to try again.");
     } finally {
       setBusy(false);
     }
@@ -301,10 +305,17 @@ function GameView({ room }: { room: ReturnType<typeof useRoom> }) {
             <p className={`${display} text-center text-xl font-bold text-fuchsia-100`}>
               Answered! Waiting for others… ({answeredCount}/{totalPlayers}) ⏳
             </p>
-          ) : r.mode === "yes-no" ? (
-            <YesNoControls claim={r.round_claim ?? "Someone"} onAnswer={onAnswer} />
           ) : (
-            <PickControls choices={choices} onAnswer={onAnswer} />
+            <>
+              {r.mode === "yes-no" ? (
+                <YesNoControls claim={r.round_claim ?? "Someone"} onAnswer={onAnswer} />
+              ) : (
+                <PickControls choices={choices} onAnswer={onAnswer} />
+              )}
+              {submitError && (
+                <p className={`${display} mt-3 text-center text-sm font-bold text-rose-200`}>{submitError}</p>
+              )}
+            </>
           )}
         </div>
       </div>
