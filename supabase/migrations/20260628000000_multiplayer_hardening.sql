@@ -95,7 +95,7 @@ begin
     returning id into v_player_id;
   insert into room_player_secrets (player_id)
     values (v_player_id)
-    returning token into v_token;
+    returning room_player_secrets.token into v_token;
 
   return query select v_room_id, v_code, v_player_id, v_token;
 end;
@@ -126,7 +126,7 @@ begin
     returning id into v_player_id;
   insert into room_player_secrets (player_id)
     values (v_player_id)
-    returning token into v_token;
+    returning room_player_secrets.token into v_token;
 
   return query select v_room.id, v_player_id, v_token;
 end;
