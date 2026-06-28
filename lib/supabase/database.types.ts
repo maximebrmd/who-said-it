@@ -103,12 +103,235 @@ export type Database = {
           },
         ]
       }
+      room_answers: {
+        Row: {
+          answer: string
+          answered_at: string
+          id: string
+          is_correct: boolean
+          player_id: string
+          room_id: string
+          round: number
+        }
+        Insert: {
+          answer: string
+          answered_at?: string
+          id?: string
+          is_correct: boolean
+          player_id: string
+          room_id: string
+          round: number
+        }
+        Update: {
+          answer?: string
+          answered_at?: string
+          id?: string
+          is_correct?: boolean
+          player_id?: string
+          room_id?: string
+          round?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_answers_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "room_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_answers_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_players: {
+        Row: {
+          id: string
+          is_host: boolean
+          joined_at: string
+          last_seen: string
+          name: string
+          room_id: string
+          score: number
+          token: string
+        }
+        Insert: {
+          id?: string
+          is_host?: boolean
+          joined_at?: string
+          last_seen?: string
+          name: string
+          room_id: string
+          score?: number
+          token?: string
+        }
+        Update: {
+          id?: string
+          is_host?: boolean
+          joined_at?: string
+          last_seen?: string
+          name?: string
+          room_id?: string
+          score?: number
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_players_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_rounds: {
+        Row: {
+          author: string
+          body: string
+          choices: Json | null
+          claim: string | null
+          claim_is_true: boolean | null
+          message_id: string
+          room_id: string
+          round: number
+        }
+        Insert: {
+          author: string
+          body: string
+          choices?: Json | null
+          claim?: string | null
+          claim_is_true?: boolean | null
+          message_id: string
+          room_id: string
+          round: number
+        }
+        Update: {
+          author?: string
+          body?: string
+          choices?: Json | null
+          claim?: string | null
+          claim_is_true?: boolean | null
+          message_id?: string
+          room_id?: string
+          round?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_rounds_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          chat_label: string
+          code: string
+          created_at: string
+          current_round: number
+          id: string
+          mode: string
+          reveal_at: string | null
+          round_choices: Json | null
+          round_claim: string | null
+          round_message_author: string | null
+          round_message_body: string | null
+          round_message_id: string | null
+          round_phase: string
+          status: string
+          total_rounds: number
+        }
+        Insert: {
+          chat_label?: string
+          code: string
+          created_at?: string
+          current_round?: number
+          id?: string
+          mode: string
+          reveal_at?: string | null
+          round_choices?: Json | null
+          round_claim?: string | null
+          round_message_author?: string | null
+          round_message_body?: string | null
+          round_message_id?: string | null
+          round_phase?: string
+          status?: string
+          total_rounds?: number
+        }
+        Update: {
+          chat_label?: string
+          code?: string
+          created_at?: string
+          current_round?: number
+          id?: string
+          mode?: string
+          reveal_at?: string | null
+          round_choices?: Json | null
+          round_claim?: string | null
+          round_message_author?: string | null
+          round_message_body?: string | null
+          round_message_id?: string | null
+          round_phase?: string
+          status?: string
+          total_rounds?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      advance_room: { Args: { p_room_id: string }; Returns: undefined }
+      create_room: {
+        Args: {
+          p_chat_label: string
+          p_host_name: string
+          p_mode: string
+          p_rounds: Json
+          p_total_rounds: number
+        }
+        Returns: {
+          code: string
+          player_id: string
+          room_id: string
+          token: string
+        }[]
+      }
+      gen_room_code: { Args: never; Returns: string }
+      heartbeat: {
+        Args: { p_player_id: string; p_token: string }
+        Returns: undefined
+      }
+      join_room: {
+        Args: { p_code: string; p_name: string }
+        Returns: {
+          player_id: string
+          room_id: string
+          token: string
+        }[]
+      }
+      start_room: {
+        Args: { p_player_id: string; p_room_id: string; p_token: string }
+        Returns: undefined
+      }
+      submit_answer: {
+        Args: {
+          p_answer: string
+          p_player_id: string
+          p_room_id: string
+          p_round: number
+          p_token: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
