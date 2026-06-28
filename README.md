@@ -97,16 +97,23 @@ answers, round advances, and score updates. Requires Supabase configured (the
 **JWT `anon` key**, not a publishable key — Realtime needs the role claim for
 RLS-scoped `postgres_changes`).
 
-**Data model & RLS** (see `supabase/migrations/*_multiplayer_rooms.sql`):
+**Data model & RLS** (see the multiplayer migrations under `supabase/migrations/`):
 `rooms` (code, mode, status, current round + the round's question), `room_players`
-(name, score, per-session token), `room_answers` (one row per player/round), and
-a **private** `room_rounds` holding the true authors (no anon access, so answers
-can't be read ahead). **All writes go through `SECURITY DEFINER` RPCs** —
-`create_room`, `join_room`, `start_room`, `submit_answer`, `advance_room`,
-`heartbeat`. Base tables grant anon **SELECT only**, so clients can't tamper with
-scores or round state; `submit_answer` grades server-side (no self-scoring), the
-secret `token` is hidden via column grants, and `advance_room` is idempotent
-(locks the room, only advances from a reveal) so any client can safely trigger it.
+(name, score), `room_answers` (one row per player/round: who answered +
+`is_correct`), and a **private** `room_rounds` holding the true authors (no anon
+access, so answers can't be read ahead). Two more **private** tables keep secrets
+off Realtime: `room_player_secrets` holds each player's per-session token and
+`room_answer_secrets` holds the raw guess — neither is anon-granted or in the
+realtime publication, so they can never ride a `postgres_changes` payload (a
+column grant alone wouldn't strip them from the broadcast row). **All writes go
+through `SECURITY DEFINER` RPCs** — `create_room`, `join_room`, `start_room`,
+`submit_answer`, `advance_room`, `reconcile_room`, `heartbeat`. Base tables grant
+anon **SELECT only**, so clients can't tamper with scores or round state;
+`submit_answer` grades server-side (no self-scoring), and `advance_room` is
+idempotent (locks the room, only advances from a reveal, and enforces a ~3s
+minimum reveal window server-side) so any client can safely trigger it.
+`reconcile_room` re-checks the all-answered condition so a round can't stall if a
+player drops after everyone else has answered.
 
 ## Data pipeline (Supabase, via `supabase-axi`)
 
